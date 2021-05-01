@@ -908,14 +908,14 @@ class FullGaussian2d(nn.Module):
             )  # grid locations in feature space sampled randomly around the mean self.mu
 
     def init_grid_predictor(
-        self, source_grid, hidden_features=20, hidden_layers=0, final_tanh=False, shared_transform=None
+        self, source_grid, hidden_features=20, hidden_layers=0, nonlinearity="ELU", final_tanh=False, shared_transform=None
     ):
         self._original_grid = False
         if shared_transform is None:
             layers = [nn.Linear(source_grid.shape[1], hidden_features if hidden_layers > 0 else 2)]
 
             for i in range(hidden_layers):
-                layers.extend([nn.ELU(), nn.Linear(hidden_features, hidden_features if i < hidden_layers - 1 else 2)])
+                layers.extend([getattr(nn, nonlinearity)(), nn.Linear(hidden_features, hidden_features if i < hidden_layers - 1 else 2)])
 
             if final_tanh:
                 layers.append(nn.Tanh())
@@ -945,7 +945,8 @@ class FullGaussian2d(nn.Module):
         if self._predicted_grid:
             if isinstance(self.mu_transform, nn.Sequential):
                 for layer in self.mu_transform:
-                    layer.bias.data.normal_(0, self.init_noise)
+                    if hasattr(layer, 'bias'):
+                        layer.bias.data.normal_(0, self.init_noise)
                 if len(self.mu_transform) == 1:
                     self.mu_transform[0].weight.data = torch.from_numpy(
                         self.init_transform_scale * ortho_group.rvs(2).astype(np.float32)
